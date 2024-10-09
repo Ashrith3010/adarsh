@@ -1,5 +1,11 @@
 {
-    "testuser": ["Item1", "Item2"],
-    "anotheruser": ["Vegetable Curry", "Chicken Biryani"]
-  }
-  
+  "testuser": [
+    "Item1",
+    "Item2"
+  ],
+  "anotheruser": [],
+  "adarsh": [
+    "Chicken Biryani",
+    "Chicken Biryani"
+  ]
+}

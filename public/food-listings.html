@@ -3,58 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Available Food</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Food Listings</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        nav {
+            background-color: #333;
+            padding: 15px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            justify-content: space-around;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        nav ul li a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        nav ul li a:hover {
+            color: #4CAF50;
+        }
+        .food-list {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        .food-item {
+            background-color: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s;
+        }
+        .food-item:hover {
+            transform: translateY(-5px);
+        }
+        .food-item h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        .food-item p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #cart-count {
+            background-color: #ff6347;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 12px;
+            margin-left: 5px;
+        }
+    </style>
 </head>
 <body>
     <nav>
-        <ul>
-            <li><a href="index.html">Home</a></li>
-            <li><a href="about.html">About</a></li>
-            <li><a href="features.html">Features</a></li>
-            <li><a href="food-listings.html">Food Listings</a></li>
-            <li><a href="contact.html">Contact</a></li>
-            <li id="cart-link" style="display: none;"><a href="cart.html">Cart (<span id="cart-count">0</span>)</a></li>
+        <ul id="nav-list">
+            <!-- Navigation will be populated by header.js -->
         </ul>
     </nav>
 
-    <section class="food-list">
-        <h1>Available Food Items</h1>
-        <div class="food-item" data-name="Vegetable Curry" data-price="120">
+    <div class="food-list">
+        <div class="food-item">
             <h2>Vegetable Curry</h2>
             <p>₹120</p>
             <button onclick="addToCart('Vegetable Curry', 120)">Add to Cart</button>
         </div>
-        <div class="food-item" data-name="Chicken Biryani" data-price="150">
+        <div class="food-item">
             <h2>Chicken Biryani</h2>
             <p>₹150</p>
             <button onclick="addToCart('Chicken Biryani', 150)">Add to Cart</button>
         </div>
-        <div class="food-item" data-name="Paneer Butter Masala" data-price="130">
+        <div class="food-item">
             <h2>Paneer Butter Masala</h2>
             <p>₹130</p>
             <button onclick="addToCart('Paneer Butter Masala', 130)">Add to Cart</button>
         </div>
-    </section>
+    </div>
 
     <script>
+    let cartItems = [];
+
+    async function addToCart(item, price) {
+        const username = localStorage.getItem('username');
+        if (!username) {
+            alert('Please log in to add items to cart');
+            window.location.href = 'login.html';
+            return;
+        }
+
+        try {
+            const response = await fetch(`http://localhost:3000/cart/${username}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ item: item })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                cartItems = data.cart;
+                updateCartCount();
+                alert(`${item} has been added to your cart!`);
+            } else {
+                alert('Failed to add item to cart. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error adding to cart:', error);
+            alert('Error adding item to cart. Please try again.');
+        }
+    }
+
+    function updateCartCount() {
         const cartCountElement = document.getElementById('cart-count');
-        let cart = JSON.parse(localStorage.getItem('cart')) || [];
-
-        cartCountElement.innerText = cart.length;
-
-        function addToCart(name, price) {
-            cart.push(name);
-            localStorage.setItem('cart', JSON.stringify(cart));
-            cartCountElement.innerText = cart.length;
-            alert(name + ' has been added to your cart!');
+        if (cartCountElement) {
+            cartCountElement.textContent = cartItems.length;
         }
+    }
 
-        // Display cart link if logged in
-        if (localStorage.getItem('loggedIn') === 'true') {
-            document.getElementById('cart-link').style.display = 'block';
-            cartCountElement.innerText = cart.length;
+    // Initial cart load
+    async function loadCart() {
+        const username = localStorage.getItem('username');
+        if (username) {
+            try {
+                const response = await fetch(`http://localhost:3000/cart/${username}`);
+                const data = await response.json();
+                cartItems = data;
+                updateCartCount();
+            } catch (error) {
+                console.error('Error loading cart:', error);
+            }
         }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadCart);
     </script>
+    <script src="header.js"></script>
 </body>
 </html>

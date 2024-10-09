@@ -1,39 +1,67 @@
 const express = require('express');
-const fs = require('fs').promises; // Use promises to handle asynchronous file operations
+const fs = require('fs').promises;
 const path = require('path');
 const bodyParser = require('body-parser');
-const cors = require('cors'); // Import CORS
+const cors = require('cors');
 
 const app = express();
 const PORT = 3000;
 
-app.use(cors()); // Enable all CORS requests
+// Middleware
+app.use(cors());
 app.use(bodyParser.json());
+app.use(express.static('public'));
 
-// Serve static files after the API routes
-app.use(express.static(path.join(__dirname, 'public')));
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+    console.log(`${req.method} request to ${req.url}`);
+    next();
+});
 
-const USERS_FILE = './data/users.json';
-const CART_FILE = './data/cart.json';
-
-// Fetch users for login validation
-app.get('/users', async (req, res) => {
+const USERS_FILE = path.join(__dirname, 'data', 'users.json');
+const CART_FILE = path.join(__dirname, 'data', 'cart.json');
+// Ensure data files exist
+async function ensureDataFiles() {
     try {
+        await fs.access(USERS_FILE);
+    } catch {
+        await fs.writeFile(USERS_FILE, '[]');
+    }
+    try {
+        await fs.access(CART_FILE);
+    } catch {
+        await fs.writeFile(CART_FILE, '{}');
+    }
+}
+ensureDataFiles();
+// Login endpoint
+app.post('/login', async (req, res) => {
+    console.log('Login attempt:', req.body); // Debug log
+    try {
+        const { username, password } = req.body;
         const data = await fs.readFile(USERS_FILE, 'utf-8');
-        res.json(JSON.parse(data));
+        const users = JSON.parse(data);
+        
+        const user = users.find(u => u.username === username && u.password === password);
+        
+        if (user) {
+            res.json({ success: true });
+        } else {
+            res.json({ success: false, message: 'Invalid credentials' });
+        }
     } catch (err) {
-        console.error('Error reading users file:', err);
-        res.status(500).json({ error: 'Error reading users file' });
+        console.error('Login error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
     }
 });
 
-// Fetch user's cart based on username
+// Existing cart endpoint
 app.get('/cart/:username', async (req, res) => {
-    const username = req.params.username;
-    console.log(`Fetching cart for user: ${username}`);  // Add this log to verify the username
+    const { username } = req.params;
+    console.log(`Fetching cart for user: ${username}`);
     try {
         const data = await fs.readFile(CART_FILE, 'utf-8');
-        console.log(`Cart data: ${data}`);  // Log the cart data being fetched
+        console.log(`Cart data: ${data}`);
         const cartData = JSON.parse(data);
         const userCart = cartData[username] || [];
         res.json(userCart);
@@ -43,62 +71,96 @@ app.get('/cart/:username', async (req, res) => {
     }
 });
 
-
-
-// Update user's cart
-app.post('/cart', async (req, res) => {
-    const { username, cart } = req.body;
-    try {
-        const data = await fs.readFile(CART_FILE, 'utf-8');
-        const cartData = JSON.parse(data);
-        cartData[username] = cart;
-
-        await fs.writeFile(CART_FILE, JSON.stringify(cartData, null, 2));
-        res.json({ success: true, message: 'Cart updated successfully' });
-    } catch (err) {
-        console.error('Error updating cart file:', err);
-        res.status(500).json({ error: 'Error updating cart file' });
-    }
-});
-
-// Handle purchase (clear user's cart)
-app.post('/purchase', async (req, res) => {
-    const { username } = req.body;
-    try {
-        const data = await fs.readFile(CART_FILE, 'utf-8');
-        const cartData = JSON.parse(data);
-        cartData[username] = [];  // Clear the user's cart
-
-        await fs.writeFile(CART_FILE, JSON.stringify(cartData, null, 2));
-        res.json({ success: true, message: 'Purchase completed and cart cleared' });
-    } catch (err) {
-        console.error('Error clearing cart file:', err);
-        res.status(500).json({ error: 'Error clearing cart file' });
-    }
-});
-
-
-// Register a new user
+// Register endpoint
 app.post('/register', async (req, res) => {
     const { username, password } = req.body;
     try {
         const data = await fs.readFile(USERS_FILE, 'utf-8');
         const users = JSON.parse(data);
-
-        if (users.some(user => user.username === username)) {
+        
+        if (users.some(u => u.username === username)) {
             return res.json({ success: false, message: 'Username already exists' });
         }
-
+        
         users.push({ username, password });
         await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2));
-        res.json({ success: true, message: 'Registration successful' });
+        
+        // Initialize empty cart for new user
+        const cartData = await fs.readFile(CART_FILE, 'utf-8');
+        const carts = JSON.parse(cartData);
+        carts[username] = [];
+        await fs.writeFile(CART_FILE, JSON.stringify(carts, null, 2));
+        
+        res.json({ success: true });
     } catch (err) {
-        console.error('Error registering user:', err);
-        res.status(500).json({ error: 'Error registering user' });
+        console.error('Error during registration:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
     }
 });
 
-// Start server
+
+// Add this to your server.js file
+
+// Update this in your server.js file
+
+app.post('/cart/:username', async (req, res) => {
+    const { username } = req.params;
+    const { item } = req.body;
+    
+    try {
+        const data = await fs.readFile(CART_FILE, 'utf-8');
+        const carts = JSON.parse(data);
+        
+        if (!carts[username]) {
+            carts[username] = [];
+        }
+        
+        carts[username].push(item);
+        
+        await fs.writeFile(CART_FILE, JSON.stringify(carts, null, 2));
+        
+        res.json({ 
+            success: true, 
+            cart: carts[username]  // Return the updated cart
+        });
+    } catch (err) {
+        console.error('Error updating cart:', err);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Error updating cart' 
+        });
+    }
+});
+
+// Existing GET endpoint for cart
+app.get('/cart/:username', async (req, res) => {
+    const { username } = req.params;
+    try {
+        const data = await fs.readFile(CART_FILE, 'utf-8');
+        const cartData = JSON.parse(data);
+        const userCart = cartData[username] || [];
+        res.json(userCart);
+    } catch (err) {
+        console.error('Error reading cart file:', err);
+        res.status(500).json({ error: 'Error reading cart file' });
+    }
+});
+
+// Clear cart after purchase
+app.post('/purchase/:username', async (req, res) => {
+    const { username } = req.params;
+    try {
+        const data = await fs.readFile(CART_FILE, 'utf-8');
+        const carts = JSON.parse(data);
+        carts[username] = [];
+        await fs.writeFile(CART_FILE, JSON.stringify(carts, null, 2));
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error processing purchase:', err);
+        res.status(500).json({ error: 'Error processing purchase' });
+    }
+});
+
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
